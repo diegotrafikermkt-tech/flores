@@ -28,6 +28,21 @@
       <p class="intro__sub">Flores amarillas, para que nunca te falte luz.</p>
       <button id="enter" class="btn btn--primary" type="button">Entrar al jardín</button>
     </div>
+    <!-- Contraseña: solo aparece si el contenido publicado está protegido -->
+    <form id="gate" class="gate" hidden>
+      <svg class="intro__emblem" viewBox="-50 -50 100 100" aria-hidden="true">
+        <g id="gatePetals"></g>
+        <circle r="13" fill="#6b3f12"/>
+        <circle r="8" fill="#4a2b0b"/>
+      </svg>
+      <h1 class="gate__title">Este jardín es privado</h1>
+      <label class="gate__field">
+        <span id="gateLabel">Escribe nuestra fecha de aniversario</span>
+        <input id="gateInput" type="password" autocomplete="off" placeholder="DD/MM/AAAA" required>
+      </label>
+      <p id="gateMsg" class="form__msg" role="status"></p>
+      <button class="btn btn--primary" type="submit">Entrar</button>
+    </form>
   </section>
 
   <!-- Interfaz sobre el jardín -->

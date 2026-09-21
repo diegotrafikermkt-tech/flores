@@ -33,6 +33,10 @@
   // Con ?editar en la URL se muestra Ajustes; sin él, la página es solo de lectura.
   const EDIT = new URLSearchParams(location.search).has('editar');
   const KEY_STORE = 'flores-amarillas:clave';
+  // la clave de edición dura solo la sesión; la fecha de los visitantes se recuerda para no pedirla en cada visita
+  const keyBox = () => (EDIT ? sessionStorage : localStorage);
+  const getKey = () => { try { return keyBox().getItem(KEY_STORE) || ''; } catch (_) { return ''; } };
+  const setKey = v => { try { v ? keyBox().setItem(KEY_STORE, v) : keyBox().removeItem(KEY_STORE); } catch (_) { /* sin almacenamiento */ } };
   let data = load();
 
   function load() {
@@ -49,7 +53,40 @@
   async function fetchCloud() {
     const res = await fetch(CLOUD, { cache: 'no-store' });
     if (!res.ok) throw new Error('lectura ' + res.status);
-    return res.json(); // null si todavía no se ha publicado nada
+    return res.json(); // null si no hay nada publicado; { locked: true } si hay contenido protegido
+  }
+
+  async function readCloud(clave) {
+    const res = await fetch(CLOUD, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ accion: 'leer', clave }) });
+    if (res.status === 401) throw new Error('clave');
+    if (!res.ok) throw new Error('lectura ' + res.status);
+    return (await res.json()).datos;
+  }
+
+  // pide la contraseña en la pantalla de acceso hasta que sea correcta; devuelve el contenido
+  async function unlock() {
+    const saved = getKey();
+    if (saved) {
+      try { return await readCloud(saved); } catch (e) { if (e.message !== 'clave') throw e; setKey(''); }
+    }
+    const form = $('#gate'), input = $('#gateInput'), msg = $('#gateMsg'), btn = $('button', form);
+    $('#gateLabel').textContent = EDIT ? 'Escribe la clave de edición' : 'Escribe nuestra fecha de aniversario';
+    input.placeholder = EDIT ? 'Clave' : 'DD/MM/AAAA';
+    form.hidden = false; input.focus({ preventScroll: true });
+    return new Promise(resolve => {
+      form.addEventListener('submit', async e => {
+        e.preventDefault();
+        const clave = input.value.trim();
+        btn.disabled = true; msg.textContent = '';
+        try {
+          const datos = await readCloud(clave);
+          setKey(clave); form.hidden = true; resolve(datos);
+        } catch (err) {
+          msg.textContent = err.message === 'clave' ? 'Esa no es. Inténtalo otra vez.' : 'No pude conectar. Revisa tu conexión.';
+          input.select();
+        } finally { btn.disabled = false; }
+      });
+    });
   }
 
   async function saveCloud(clave) {
@@ -102,9 +139,9 @@
 
   // emblema de la bienvenida
   (() => {
-    const g = $('#emblemPetals'); let s = '';
+    let s = '';
     for (let i = 0; i < 14; i++) s += `<ellipse cx="0" cy="-30" rx="9" ry="20" transform="rotate(${i * 360 / 14})" fill="${i % 2 ? '#ffd23a' : '#f7b500'}"/>`;
-    g.innerHTML = s;
+    $('#emblemPetals').innerHTML = s; $('#gatePetals').innerHTML = s;
   })();
 
   /* ---------- Recuerdo ---------- */
@@ -221,8 +258,7 @@
         if (!persist()) { msg.textContent = 'No se pudo guardar: las fotos pesan demasiado. Quita algunas e inténtalo de nuevo.'; return; }
         apply(); closeModal(); return;
       }
-      let clave = '';
-      try { clave = sessionStorage.getItem(KEY_STORE) || ''; } catch (_) { /* sin almacenamiento */ }
+      let clave = getKey();
       if (!clave) clave = prompt('Clave de edición:') || '';
       if (!clave) return;
       const prev = data;
@@ -230,11 +266,11 @@
       submitBtn.disabled = true; msg.textContent = 'Guardando…';
       try {
         await saveCloud(clave);
-        try { sessionStorage.setItem(KEY_STORE, clave); } catch (_) { /* nada */ }
+        setKey(clave);
         persist(); apply(); closeModal();
       } catch (e) {
         data = prev;
-        if (e.message === 'clave') { try { sessionStorage.removeItem(KEY_STORE); } catch (_) { /* nada */ } }
+        if (e.message === 'clave') setKey('');
         msg.textContent = {
           clave: 'Clave incorrecta.',
           'sin-clave': 'Falta configurar la clave de edición en Netlify (variable EDIT_KEY).',
@@ -253,7 +289,7 @@
     return h('form', { class: 'form', onsubmit: e => { e.preventDefault(); save(); } },
       h('h2', { class: 'modal__title' }, 'Ajustes del jardín'),
       h('div', { class: 'form__row' }, field('Tu nombre', n1), field('Su nombre', n2)),
-      field('Desde cuándo están juntos', fecha),
+      field(HAS_CLOUD ? 'Desde cuándo están juntos (es la contraseña de quien abra el enlace)' : 'Desde cuándo están juntos', fecha),
       field('Tu carta', carta),
       h('div', { class: 'form__mems' },
         h('div', { class: 'form__mems-head' }, h('span', {}, 'Recuerdos (cada uno vive en una flor)'),
@@ -352,7 +388,10 @@
   if (HAS_CLOUD) {
     const ready = () => document.body.classList.remove('loading');
     const timeout = setTimeout(ready, 4000);
-    fetchCloud().then(cloud => {
+    fetchCloud().then(first => {
+      if (first && first.locked) { clearTimeout(timeout); return unlock(); } // protegido: espera la contraseña sin límite de tiempo
+      return first;
+    }).then(cloud => {
       if (cloud) { data = { ...data, ...cloud }; apply(); }
     }).catch(() => { /* sin conexión: se queda lo que hay */ }).finally(() => { clearTimeout(timeout); ready(); });
   } else document.body.classList.remove('loading');

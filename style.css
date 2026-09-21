@@ -87,7 +87,7 @@ button, input, textarea { font: inherit; color: inherit; }
   transition: opacity 1s ease, transform 1s ease, visibility 1s;
 }
 body.entered .intro { opacity: 0; visibility: hidden; transform: scale(1.05); pointer-events: none; }
-.intro__card {
+.intro__card, .gate {
   width: min(92vw, 460px);
   text-align: center;
   padding: 34px 28px 32px;
@@ -274,3 +274,14 @@ body.night .ico--moon { display: none; }
 
 /* Espera de datos publicados: oculta la tarjeta de bienvenida hasta tenerlos */
 body.loading .intro__card { visibility: hidden; }
+
+/* Pantalla de contraseña (reutiliza la tarjeta de bienvenida) */
+.gate[hidden] { display: none; }
+.gate__title { margin: 6px 0 16px; font-family: var(--font-script); font-size: clamp(2rem, 9vw, 2.8rem); line-height: 1.1; font-weight: 700; }
+.gate__field { display: grid; gap: 6px; margin-bottom: 8px; text-align: left; font-size: 0.85rem; font-weight: 600; color: var(--ink-soft); }
+.gate__field input {
+  width: 100%; padding: 12px 14px; border-radius: 14px; font-size: 1.05rem; letter-spacing: 0.06em; text-align: center;
+  border: 1.5px solid rgba(180, 130, 30, 0.35); background: #fff; color: #4a2b0b;
+}
+.gate__field input:focus { outline: none; border-color: var(--gold); box-shadow: 0 0 0 3px rgba(247, 181, 0, 0.25); }
+.gate .form__msg { margin: 0 0 12px; text-align: center; }

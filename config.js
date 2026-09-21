@@ -1,14 +1,22 @@
 /*
   PERSONALIZA AQUÍ TU JARDÍN
   --------------------------
-  Puedes editar este archivo directamente, o usar el botón "Ajustes" dentro de la página
-  (lo que guardes en Ajustes tiene prioridad y se queda solo en ese navegador).
+  Puedes editar este archivo directamente, o usar el botón "Ajustes" dentro de la página.
+
+  - Con "nube" configurada, Ajustes guarda en Netlify y todos los que abran el enlace ven lo mismo.
+    Ajustes solo aparece si abres el enlace con  ?editar  al final
+    (ej.: https://tu-sitio.netlify.app/?editar) y pide la clave de edición al guardar.
+    La clave es la variable de entorno EDIT_KEY del sitio en Netlify.
+  - Sin "nube", lo que guardes en Ajustes se queda solo en ese navegador.
 
   Para poner fotos sin usar Ajustes: copia tus imágenes a la carpeta "fotos" y
   escribe su ruta en "foto", por ejemplo: foto: "fotos/nosotros1.jpg"
   Si un recuerdo no tiene foto, se muestra una florecita en su lugar.
 */
 window.FLORES_CONFIG = {
+  // Dónde se guardan y leen los datos compartidos (función de Netlify). Déjalo vacío para guardar solo en el navegador.
+  nube: "/.netlify/functions/jardin",
+
   nombre1: "Yo",            // quien regala el jardín
   nombre2: "Mi amor",       // quien lo recibe
   fecha: "2024-03-21",      // desde cuándo están juntos (AAAA-MM-DD). Déjala vacía para ocultar el contador

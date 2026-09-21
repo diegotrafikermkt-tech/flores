@@ -11,7 +11,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;600&family=Dancing+Script:wght@600;700&family=Quicksand:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
 </head>
-<body>
+<body class="loading">
   <canvas id="garden" role="img" aria-label="Un jardín de flores amarillas que se mueven con el viento. Toca el suelo para sembrar una flor."></canvas>
   <div id="floats" aria-hidden="true"></div>
 
@@ -64,7 +64,7 @@
         <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/></svg>
         <span>Música</span>
       </button>
-      <button class="dock__btn" data-action="settings" type="button">
+      <button class="dock__btn" data-action="settings" type="button" hidden>
         <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 17h16"/><circle cx="9" cy="7" r="2.2"/><circle cx="15" cy="17" r="2.2"/></svg>
         <span>Ajustes</span>
       </button>

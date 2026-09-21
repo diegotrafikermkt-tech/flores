@@ -271,3 +271,6 @@ body.night .ico--moon { display: none; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.001s !important; animation-iteration-count: 1 !important; transition-duration: 0.001s !important; }
 }
+
+/* Espera de datos publicados: oculta la tarjeta de bienvenida hasta tenerlos */
+body.loading .intro__card { visibility: hidden; }

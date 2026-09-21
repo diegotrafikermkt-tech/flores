@@ -28,12 +28,36 @@
 
   /* ---------- Datos ---------- */
   const defaults = { nombre1: '', nombre2: '', fecha: '', carta: '', musica: '', recuerdos: [] };
+  const CLOUD = (window.FLORES_CONFIG || {}).nube || '';
+  const HAS_CLOUD = !!CLOUD;
+  // Con ?editar en la URL se muestra Ajustes; sin él, la página es solo de lectura.
+  const EDIT = new URLSearchParams(location.search).has('editar');
+  const KEY_STORE = 'flores-amarillas:clave';
   let data = load();
 
   function load() {
     let saved = {};
-    try { saved = JSON.parse(localStorage.getItem(STORE) || '{}') || {}; } catch (_) { /* sin almacenamiento */ }
-    return { ...defaults, ...clone(window.FLORES_CONFIG || {}), ...saved };
+    // los visitantes con la nube activa nunca ven datos locales: solo lo publicado
+    if (!HAS_CLOUD || EDIT) {
+      try { saved = JSON.parse(localStorage.getItem(STORE) || '{}') || {}; } catch (_) { /* sin almacenamiento */ }
+    }
+    const { nube, ...config } = clone(window.FLORES_CONFIG || {});
+    return { ...defaults, ...config, ...saved };
+  }
+
+  /* ---------- Nube (función de Netlify + Netlify Blobs) ---------- */
+  async function fetchCloud() {
+    const res = await fetch(CLOUD, { cache: 'no-store' });
+    if (!res.ok) throw new Error('lectura ' + res.status);
+    return res.json(); // null si todavía no se ha publicado nada
+  }
+
+  async function saveCloud(clave) {
+    const datos = { nombre1: data.nombre1, nombre2: data.nombre2, fecha: data.fecha, carta: data.carta, recuerdos: data.recuerdos };
+    const res = await fetch(CLOUD, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ clave, datos }) });
+    if (res.ok) return;
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || 'guardado ' + res.status);
   }
   function persist() {
     try {
@@ -104,8 +128,8 @@
     if (!list.length) {
       return h('div', { class: 'empty' }, flowerSVG('memory__flower'),
         h('h2', { class: 'memory__title' }, 'Aún no hay recuerdos'),
-        h('p', { class: 'memory__text' }, 'Agrégalos con fotos desde Ajustes y aparecerán aquí y en las flores que brillan.'),
-        h('button', { class: 'btn btn--primary', type: 'button', onclick: () => openModal(settingsView(), 'wide') }, 'Ir a Ajustes'));
+        EDIT ? h('p', { class: 'memory__text' }, 'Agrégalos con fotos desde Ajustes y aparecerán aquí y en las flores que brillan.') : null,
+        EDIT ? h('button', { class: 'btn btn--primary', type: 'button', onclick: () => openModal(settingsView(), 'wide') }, 'Ir a Ajustes') : null);
     }
     return h('div', {}, h('h2', { class: 'modal__title' }, 'Nuestros recuerdos'),
       h('div', { class: 'gallery' }, list.map((m, i) =>
@@ -139,13 +163,13 @@
   }
 
   /* ---------- Ajustes ---------- */
-  function fileToDataURL(file, max = 900) {
+  function fileToDataURL(file, max = 800) {
     return createImageBitmap(file).then(bmp => {
       const k = Math.min(1, max / Math.max(bmp.width, bmp.height));
       const c = document.createElement('canvas');
       c.width = Math.round(bmp.width * k); c.height = Math.round(bmp.height * k);
       c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
-      return c.toDataURL('image/jpeg', 0.8);
+      return c.toDataURL('image/jpeg', 0.75);
     });
   }
 
@@ -188,11 +212,36 @@
       replaceIndex = -1; renderList();
     });
 
-    const save = () => {
-      data = { ...data, nombre1: n1.value.trim(), nombre2: n2.value.trim(), fecha: fecha.value, carta: carta.value,
+    const submitBtn = h('button', { class: 'btn btn--primary', type: 'submit' }, 'Guardar y replantar');
+    const save = async () => {
+      const next = { ...data, nombre1: n1.value.trim(), nombre2: n2.value.trim(), fecha: fecha.value, carta: carta.value,
         recuerdos: draft.recuerdos.filter(m => m.foto || m.titulo || m.texto) };
-      if (!persist()) { msg.textContent = 'No se pudo guardar: las fotos pesan demasiado. Quita algunas e inténtalo de nuevo.'; return; }
-      apply(); closeModal();
+      if (!HAS_CLOUD) {
+        data = next;
+        if (!persist()) { msg.textContent = 'No se pudo guardar: las fotos pesan demasiado. Quita algunas e inténtalo de nuevo.'; return; }
+        apply(); closeModal(); return;
+      }
+      let clave = '';
+      try { clave = sessionStorage.getItem(KEY_STORE) || ''; } catch (_) { /* sin almacenamiento */ }
+      if (!clave) clave = prompt('Clave de edición:') || '';
+      if (!clave) return;
+      const prev = data;
+      data = next;
+      submitBtn.disabled = true; msg.textContent = 'Guardando…';
+      try {
+        await saveCloud(clave);
+        try { sessionStorage.setItem(KEY_STORE, clave); } catch (_) { /* nada */ }
+        persist(); apply(); closeModal();
+      } catch (e) {
+        data = prev;
+        if (e.message === 'clave') { try { sessionStorage.removeItem(KEY_STORE); } catch (_) { /* nada */ } }
+        msg.textContent = {
+          clave: 'Clave incorrecta.',
+          'sin-clave': 'Falta configurar la clave de edición en Netlify (variable EDIT_KEY).',
+          grande: 'Las fotos pesan demasiado para guardarlas. Quita algunas e inténtalo de nuevo.'
+        }[e.message] || 'No se pudo guardar. Revisa tu conexión e inténtalo de nuevo.';
+        submitBtn.disabled = false;
+      }
     };
     const reset = () => {
       if (!confirm('¿Borrar lo que guardaste en Ajustes y volver a lo que dice config.js?')) return;
@@ -213,8 +262,8 @@
         list, picker),
       msg,
       h('div', { class: 'form__actions' },
-        h('button', { class: 'btn btn--ghost', type: 'button', onclick: reset }, 'Restablecer'),
-        h('button', { class: 'btn btn--primary', type: 'submit' }, 'Guardar y replantar')));
+        HAS_CLOUD ? null : h('button', { class: 'btn btn--ghost', type: 'button', onclick: reset }, 'Restablecer'),
+        submitBtn));
   }
 
   /* ---------- Contador ---------- */
@@ -297,7 +346,16 @@
     }
   });
   function clamp(v, a, b) { return Math.min(b, Math.max(a, v)); }
+  $('[data-action="settings"]').hidden = !EDIT;
   apply();
+  // con la nube activa, la bienvenida espera (máx. 4 s) a lo publicado para no mostrar la plantilla un instante
+  if (HAS_CLOUD) {
+    const ready = () => document.body.classList.remove('loading');
+    const timeout = setTimeout(ready, 4000);
+    fetchCloud().then(cloud => {
+      if (cloud) { data = { ...data, ...cloud }; apply(); }
+    }).catch(() => { /* sin conexión: se queda lo que hay */ }).finally(() => { clearTimeout(timeout); ready(); });
+  } else document.body.classList.remove('loading');
   $('#garden').addEventListener('pointerdown', () => hint.classList.add('is-gone'), { once: true });
 
   $('#enter').addEventListener('click', () => {
